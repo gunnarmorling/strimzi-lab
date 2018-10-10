@@ -46,7 +46,7 @@ $ sudo su - build
 
 === Installing Strimzi
 
-Start up OpenShift (omit the public host name when using Vagrant):
+Start up OpenShift (omit the `--public-hostname` when using Vagrant):
 
 [source, sh]
 $ oc cluster up --public-hostname=<YOUR SERVER IP>
@@ -221,7 +221,7 @@ $ oc get pods -w
 Wait until all pods have spun up and are in `Running` status:
 
 [source,sh]
-$ oc get pods
+$ oc get pods -w
 NAME                                          READY     STATUS    RESTARTS   AGE
 my-cluster-entity-operator-8669d89df6-g975b   3/3       Running   0          3m
 my-cluster-kafka-0                            2/2       Running   0          4m
@@ -233,7 +233,7 @@ strimzi-cluster-operator-7d8898b9b9-jfwv5     1/1       Running   0          14m
 In addition to the `cluster operator` created previously, notice a few more deployments:
 
 * the `entity operator` is now deployed as well - you can deploy it independently, but the Strimzi template deploys it out of the box; it is used to manage topics and/or users of Kafka
-* three Zookeeper nodes
+* one Zookeeper node
 * three Kafka brokers
 
 Also, notice that the Zookeeper ensemble and the Kafka cluster are deployed as stateful sets.
