@@ -1,7 +1,7 @@
 == Change Data Capture with Kafka Connect and Debezium
 
 This part of the lab introduces you to change data capture (CDC) using http://debezium.io/[Debezium].
-Debezium allows you to capture data changes from MySQL, Postgres and MongoDB and stream those events into Apache Kafka.
+Debezium allows you to capture data changes from MySQL, Postgres, MongoDB, Oracle and SQL Server and stream those events into Apache Kafka.
 It is based on https://kafka.apache.org/documentation/#connect[Kafka Connect].
 Streaming data changes from your database enables many interesting use cases such as
 
@@ -30,7 +30,7 @@ It is a Java EE application running on WildFly and using MySQL as its database.
 Start a MySQL instance by running:
 
 [source, sh]
-$ oc new-app --name=mysql debezium/example-mysql:0.7
+$ oc new-app --name=mysql debezium/example-mysql:0.8
 $ oc env dc/mysql MYSQL_ROOT_PASSWORD=debezium MYSQL_USER=mysqluser MYSQL_PASSWORD=mysqlpw
 
 Then build and start the application.
@@ -38,7 +38,7 @@ This uses the https://github.com/openshift-s2i/s2i-wildfly[WildFly S2I] ("source
 
 [source,sh]
 ----
-$ oc new-app --name=hikingapp openshift/wildfly-120-centos7:latest~https://github.com/strimzi/strimzi-lab.git \
+$ oc new-app --name=hikingapp openshift/wildfly-140-centos7:latest~https://github.com/debezium/microservices-lab.git \
     --context-dir=hiking-demo \
     -e MYSQL_DATABASE=inventory \
     -e MYSQL_PASSWORD=mysqlpw \
@@ -71,15 +71,15 @@ you can make the build an https://access.redhat.com/documentation/en-us/openshif
 [source,sh]
 ----
 $ oc patch bc/hikingapp -p '{"spec":{"strategy":{"sourceStrategy":{"incremental":true}}}}'
+buildconfig "hikingapp" patched
 ----
-
 
 The hostname of the exposed hikingapp service is available in the OpenShift console, or can be retrieved via CLI:
 
 [source]
 $ oc get routes hikingapp -o=jsonpath='{.spec.host}{"\n"}'
 
-Note the output, which should be in the format hikingapp-l1099-kafka.apps-<GUID>.generic.opentlc.com and you can navigate there using a browser.
+Note the output, which should be in the format hikingapp-voxxed.<YOUR SERVER IP>.nip.io and you can navigate there using a browser.
 Alternatively, you could click on the application's URL within the OpenShift web UI.
 
 You can use "Populate Data" to create some example data (Click on "Search hikes" after that to see the created entries).
@@ -99,12 +99,12 @@ This makes it very easy to create a Kafka Connect cluster with additional connec
 
 [source]
 ----
-$ oc new-app strimzi-connect-s2i \
+$ oc process strimzi-connect-s2i \
     -p CLUSTER_NAME=debezium \
-    -p KAFKA_CONNECT_BOOTSTRAP_SERVERS=my-cluster-kafka:9092 \
     -p KAFKA_CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=1 \
     -p KAFKA_CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=1 \
-    -p KAFKA_CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1
+    -p KAFKA_CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1 \
+    | oc apply -f -
 ----
 
 Use `oc status` to verify that the S2I process has finished
@@ -122,7 +122,7 @@ Extract the downloaded files and trigger another S2I build of `debezium-connect`
 
 [source,sh]
 ----
-export DEBEZIUM_VERSION=0.7.5
+export DEBEZIUM_VERSION=0.8.3.Final
 mkdir -p plugins && cd plugins && \
 curl http://central.maven.org/maven2/io/debezium/debezium-connector-mysql/$DEBEZIUM_VERSION/debezium-connector-mysql-$DEBEZIUM_VERSION-plugin.tar.gz | tar xz; \
 mkdir confluent-jdbc-sink && cd confluent-jdbc-sink && \
@@ -168,7 +168,7 @@ Once that's the case, register an instance of the Debezium MySQL connector using
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X POST \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
-    http://debezium-connect:8083/connectors -d @- <<'EOF'
+    http://debezium-connect-api:8083/connectors -d @- <<'EOF'
 
 {
     "name": "inventory-connector",
@@ -182,7 +182,7 @@ $ oc exec -i my-cluster-kafka-0 -- curl -s -X POST \
         "database.server.id": "184054",
         "database.server.name": "dbserver1",
         "database.whitelist": "inventory",
-        "database.history.kafka.bootstrap.servers": "my-cluster-kafka:9092",
+        "database.history.kafka.bootstrap.servers": "my-cluster-kafka-bootstrap:9092",
         "database.history.kafka.topic": "schema-changes.inventory"
     }
 }
@@ -197,7 +197,7 @@ Kafka Connect’s log file should contain messages regarding execution of initia
 
 [source,sh]
 ----
-$ oc logs $(oc get pods -o name -l app=strimzi-connect-s2i)
+$ oc logs $(oc get pods -o name -l strimzi.io/name=debezium-connect)
 ----
 
 You can examine CDC messages in Kafka using the console consumer (use Ctrl + C to exit the tool):
@@ -205,7 +205,7 @@ You can examine CDC messages in Kafka using the console consumer (use Ctrl + C t
 [source]
 ----
 $ oc exec -it my-cluster-kafka-0 -- /opt/kafka/bin/kafka-console-consumer.sh \
-   --bootstrap-server localhost:9092 \
+   --bootstrap-server my-cluster-kafka-bootstrap:9092 \
    --from-beginning \
    --property print.key=true \
    --topic dbserver1.inventory.Hike
@@ -394,7 +394,7 @@ Value:
             "recommendedTrip_id": 2
         },
         "source": {
-            "version": "0.7.5",
+            "version": "0.8.3.Final",
             "name": "dbserver1",
             "server_id": 0,
             "ts_sec": 0,
@@ -433,7 +433,7 @@ Using the Kafka Connect REST API, you also can query the list of connectors, que
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
-    http://debezium-connect:8083/connectors
+    http://debezium-connect-api:8083/connectors
 ----
 
 [source]
@@ -442,7 +442,7 @@ $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
-    http://debezium-connect:8083/connectors/inventory-connector/status
+    http://debezium-connect-api:8083/connectors/inventory-connector/status
 ----
 
 [source]
@@ -451,7 +451,7 @@ $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X DELETE \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
-    http://debezium-connect:8083/connectors/inventory-connector
+    http://debezium-connect-api:8083/connectors/inventory-connector
 ----
 
 === Processing Change Data Events
@@ -486,7 +486,7 @@ Once the database has started (use `oc get pods` to verify that Postgres is runn
 $ oc exec -i my-cluster-kafka-0 -- curl -X POST \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
-    http://debezium-connect:8083/connectors -d @- <<'EOF'
+    http://debezium-connect-api:8083/connectors -d @- <<'EOF'
 {
     "name": "jdbc-sink",
     "config": {
@@ -551,12 +551,13 @@ Again we're using an S2I process for building and deploying the application:
 
 [source,sh]
 ----
-$ oc new-app --name=websocketsinkapp fabric8/s2i-java:latest~https://github.com/strimzi/strimzi-lab.git \
+$ oc new-app --name=websocketsinkapp fabric8/s2i-java:latest~https://github.com/debezium/microservices-lab.git \
     --context-dir=debezium-swarm-demo \
     -e MYSQL_DATABASE=inventory \
     -e AB_PROMETHEUS_OFF=true \
-    -e KAFKA_SERVICE_HOST=my-cluster-kafka \
-    -e KAFKA_SERVICE_PORT=9092
+    -e KAFKA_SERVICE_HOST=my-cluster-kafka-bootstrap \
+    -e KAFKA_SERVICE_PORT=9092 \
+    -e JAVA_OPTIONS=-Djava.net.preferIPv4Stack=true
 
 # Make subsequent builds of the application executing faster
 $ oc patch bc/websocketsinkapp -p '{"spec":{"strategy":{"sourceStrategy":{"incremental":true}}}}'
@@ -578,9 +579,9 @@ $ oc expose svc websocketsinkapp
 
 To consume the Debezium CDC events from the Kafka topic,
 the application uses https://github.com/aerogear/kafka-cdi[kafka-cdi], a CDI portable extension provided by the AeroGear project.
-This happens in the https://github.com/strimzi/strimzi-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/WebSocketChangeEventHandler.java[WebSocketChangeEventHandler] class.
+This happens in the https://github.com/debezium/microservices-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/WebSocketChangeEventHandler.java[WebSocketChangeEventHandler] class.
 All it then needs to do is to push all incoming events via WebSockets to all connected clients.
-For that purpose, the https://github.com/strimzi/strimzi-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/ChangeEventsWebsocketEndpoint.java[ChangeEventsWebsocketEndpoint] class registers all clients with the event handler upon connection creation.
+For that purpose, the https://github.com/debezium/microservices-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/ChangeEventsWebsocketEndpoint.java[ChangeEventsWebsocketEndpoint] class registers all clients with the event handler upon connection creation.
 
 Wait until the S2I build has finished and the application is running
 (again this initial build will take a few minutes for downloading all required dependencies, while future incremental ones will be faster).
@@ -600,7 +601,7 @@ Once the application is running, get its URL by executing:
 [source]
 $ oc get routes websocketsinkapp -o=jsonpath='{.spec.host}{"\n"}'
 
-Open that URL in a browser, it should be in the form http://websocketsinkapp-l1099-kafka.apps-<GUID>.generic.opentlc.com/.
+Open that URL in a browser, it should be in the form http://websocketsinkapp-voxxed.<YOUR SERVER IP>.nip.io/.
 
 Modify some entries in the CRUD application and observe how the change events are propagated to the other browser window via WebSockets in near-realtime.
 
