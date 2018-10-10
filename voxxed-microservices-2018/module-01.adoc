@@ -142,6 +142,7 @@ template.template.openshift.io "strimzi-persistent" created
 Now you can deploy a Kafka cluster.
 For this lab, we will use a template (so to bootstrap only a single ZooKeeper node),
 but you could create a resource file from scratch as well or use one from _examples/kafka_.
+We will deploy 3 instances of Kafka broker (the default) and one instance of ZooKeeper.
 
 TODO: decide on ZK nodes
 
@@ -205,7 +206,7 @@ Spec:
     Readiness Probe:
       Initial Delay Seconds:  15
       Timeout Seconds:        5
-    Replicas:                 3
+    Replicas:                 1
     Storage:
       Type:  ephemeral
 Events:      <none>
@@ -227,8 +228,6 @@ my-cluster-kafka-0                            2/2       Running   0          4m
 my-cluster-kafka-1                            2/2       Running   0          4m
 my-cluster-kafka-2                            2/2       Running   0          4m
 my-cluster-zookeeper-0                        2/2       Running   0          4m
-my-cluster-zookeeper-1                        2/2       Running   0          4m
-my-cluster-zookeeper-2                        2/2       Running   0          4m
 strimzi-cluster-operator-7d8898b9b9-jfwv5     1/1       Running   0          14m
 
 In addition to the `cluster operator` created previously, notice a few more deployments:
@@ -333,8 +332,6 @@ my-cluster-kafka-2                            2/2       Running   0          46m
 my-cluster-kafka-3                            2/2       Running   0          18m
 my-cluster-kafka-4                            2/2       Running   0          18m
 my-cluster-zookeeper-0                        2/2       Running   0          38s
-my-cluster-zookeeper-1                        1/2       Running   0          20s
-my-cluster-zookeeper-2                        2/2       Running   0          20s
 strimzi-cluster-operator-5bbcc486fc-hwswp     1/1       Running   0          47m
 
 Notice the new pods `my-cluster-kafka-3` and `my-cluster-kafka-4`.
