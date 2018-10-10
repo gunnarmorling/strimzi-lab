@@ -49,7 +49,7 @@ $ sudo su - build
 Start up OpenShift (omit the `--public-hostname` when using Vagrant):
 
 [source, sh]
-$ oc cluster up --public-hostname=<YOUR SERVER IP>
+$ oc cluster up --use-existing-config --public-hostname=<YOUR SERVER IP>
 
 Log into OpenShift:
 

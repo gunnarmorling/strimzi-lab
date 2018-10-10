@@ -6,6 +6,8 @@
   vars:
     tools_dir: /home/build/tools
     downloads_dir: /home/build/downloads
+    openshift_config_dir: /var/lib/origin/openshift.local.config
+    openshift_node_config_file: "{{ openshift_config_dir }}/node-localhost/node-config.yaml"
     #openshift_version: 3.10.0
     #openshift_hash: dd10d17
     openshift_version: 3.9.0
@@ -88,3 +90,13 @@
 
     become: true
     become_user: root
+  - name: configure OpenShift
+    block:
+      - name: Create OpenShift config files
+        shell: "env PATH={{ tools_dir }}/openshift-origin-client-tools-v{{ openshift_version }}-{{ openshift_hash }}-linux-64bit:$PATH bash -c 'oc cluster up && oc cluster down'"
+      - name: Setup OpenShift config files
+        shell: "sed '/kubeletArguments:/a \\ \\ pods-per-core:\\n  - \"30\"' {{ openshift_node_config_file }} > /tmp/upd.tmp && cp /tmp/upd.tmp {{ openshift_node_config_file }}"
+        args:
+          warn: false
+    become_user: build
+    become: true
