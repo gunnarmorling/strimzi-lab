@@ -117,7 +117,12 @@ $ oc status
 
 Alternatively, you can check in the OpenShift web UI that the rolling deployment for "debezium-connect" has finished.
 
-Then download the Debezium connector for MySQL as well as the Confluent JDBC sink connector and the Postgres database driver used by the latter.
+Then download the following files:
+
+* the Debezium CDC connector for MySQL
+* the Confluent JDBC sink connector and the Postgres database driver
+* the Confluent Elasticsearch sink connector and its dependencies
+
 Extract the downloaded files and trigger another S2I build of `debezium-connect`, this time including these additional resources:
 
 [source,sh]
@@ -127,7 +132,20 @@ mkdir -p plugins && cd plugins && \
 curl http://central.maven.org/maven2/io/debezium/debezium-connector-mysql/$DEBEZIUM_VERSION/debezium-connector-mysql-$DEBEZIUM_VERSION-plugin.tar.gz | tar xz; \
 mkdir confluent-jdbc-sink && cd confluent-jdbc-sink && \
 curl -O http://central.maven.org/maven2/org/postgresql/postgresql/42.2.2/postgresql-42.2.2.jar && \
-curl -O http://packages.confluent.io/maven/io/confluent/kafka-connect-jdbc/3.3.0/kafka-connect-jdbc-3.3.0.jar && \
+curl -O http://packages.confluent.io/maven/io/confluent/kafka-connect-jdbc/5.0.0/kafka-connect-jdbc-5.0.0.jar && \
+cd .. && \
+mkdir confluent-es-sink && cd confluent-es-sink && \
+curl -sO http://packages.confluent.io/maven/io/confluent/kafka-connect-elasticsearch/5.0.0/kafka-connect-elasticsearch-5.0.0.jar && \
+curl -sO http://central.maven.org/maven2/io/searchbox/jest/2.0.0/jest-2.0.0.jar && \
+curl -sO http://central.maven.org/maven2/org/apache/httpcomponents/httpcore-nio/4.4.4/httpcore-nio-4.4.4.jar && \
+curl -sO http://central.maven.org/maven2/org/apache/httpcomponents/httpclient/4.5.1/httpclient-4.5.1.jar && \
+curl -sO http://central.maven.org/maven2/org/apache/httpcomponents/httpasyncclient/4.1.1/httpasyncclient-4.1.1.jar && \
+curl -sO http://central.maven.org/maven2/org/apache/httpcomponents/httpcore/4.4.4/httpcore-4.4.4.jar && \
+curl -sO http://central.maven.org/maven2/commons-logging/commons-logging/1.2/commons-logging-1.2.jar && \
+curl -sO http://central.maven.org/maven2/commons-codec/commons-codec/1.9/commons-codec-1.9.jar && \
+curl -sO http://central.maven.org/maven2/org/apache/httpcomponents/httpcore/4.4.4/httpcore-4.4.4.jar && \
+curl -sO http://central.maven.org/maven2/io/searchbox/jest-common/2.0.0/jest-common-2.0.0.jar && \
+curl -sO http://central.maven.org/maven2/com/google/code/gson/gson/2.4/gson-2.4.jar && \
 cd .. && \
 oc start-build debezium-connect --from-dir=. --follow && \
 cd ..
@@ -536,6 +554,110 @@ To leave the shell on the Postgres pod, run:
 ----
 exit
 ----
+
+==== Streaming Change Events To Elasticsearch
+
+The beauty of using Apache Kafka for streaming change events is its flexibility.
+As the topics are persistent, additional consumers can come up which have not been known when data changes originally occurred.
+
+As an example, lets stream the `Hike` events to Elasticsearch now, too, making them available to the powerful fulltext search capabilities.
+
+TODO: must be run upfront on the host, should go into general set-up
+
+[source]
+----
+$ sudo sysctl -w vm.max_map_count=262144
+----
+
+Set up a single Elasticsearch node
+(it'd be a complete customer in production, but a single node is fine for the purposes of this lab)
+and expose it as a service:
+
+[source]
+----
+$ oc new-app -e ES_JAVA_OPTS="-Xms512m -Xmx512m" elasticsearch:6.4.2
+$ oc expose svc/elasticsearch
+----
+
+Create a configuration file for Elasticsearch:
+
+[source]
+----
+$ cat > elasticsearch.yml << EOF
+cluster.name: docker-cluster123
+network.host: 0.0.0.0
+discovery.zen.minimum_master_nodes: 1
+discovery.type: single-node
+EOF
+----
+
+And make its contents available as a config map:
+
+[source]
+----
+$ oc create configmap es-config --from-file=elasticsearch.yml
+----
+
+Finally, the config map contents can be exposed to the Elasticsearch container using a volume:
+
+[source]
+----
+$ oc volume dc/elasticsearch --overwrite --add \
+  -t configmap \
+  -m /usr/share/elasticsearch/config/elasticsearch.yml \
+  --sub-path=elasticsearch.yml \
+  --name=es-config \
+  --configmap-name=es-config
+----
+
+This triggers a restart of the Elasticsearch node; once it's up again (use `oc get pods` to verify),
+it's time to register an instance of the Elasticsearch sink connector:
+
+[source]
+----
+$ oc exec -i my-cluster-kafka-0 -- curl -X POST \
+    -H "Accept:application/json" \
+    -H "Content-Type:application/json" \
+    http://debezium-connect-api:8083/connectors -d @- <<'EOF'
+{
+    "name": "elastic-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
+        "tasks.max": "1",
+        "topics": "dbserver1.inventory.Hike",
+        "connection.url": "http://elasticsearch:9200",
+        "key.ignore": "false",
+        "type.name": "hike",
+        "behavior.on.null.values" : "delete",
+        "topic.index.map" : "dbserver1.inventory.Hike:hike",
+        "transforms": "unwrap,key",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "transforms.key.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+        "transforms.key.field": "id"
+    }
+}
+EOF
+----
+
+This listens to the `dbserver1.inventory.Hike` topic and pushes corresponding index updates to Elasticsearch.
+As index names must be lower-cased, the topic is named to the "hike" index name.
+The `UnwrapFromEnvelope` transformation is used to extract only the "after" state from Debezium's change events.
+Using the `ExtractField` transformation we make sure that the original record id is used as the document id in Elasticsearch.
+
+If the connector is deployed, you can query the index via its REST API.
+
+Get its URL by executing:
+
+[source]
+$ oc get routes elasticsearch -o=jsonpath='{.spec.host}{"\n"}'
+
+Open that URL in a browser, it should be in the form http://elasticsearch-voxxed.<YOUR SERVER IP>.nip.io/.
+
+To browse the contents of the `hike` index, go to http://elasticsearch-voxxed.<YOUR SERVER IP>.nip.io/hike/_search?pretty.
+Alternatively, you can use curl to do so:
+
+[source]
+$ oc exec -i my-cluster-kafka-0 -- curl -s -X GET "elasticsearch:9200/hike/_search?pretty"
 
 ==== Consuming Data Change Events With WildFly Swarm
 
