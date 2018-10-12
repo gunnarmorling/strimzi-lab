@@ -16,7 +16,7 @@ In this module of the lab you'll learn the following things:
 * Configuring an instance of that connector, ingesting changes from an existing example CRUD application
 * Different ways of processing change data events
 ** Streaming data changes to a Postgres sink database
-** Programmatically consuming change events using WildFly Swarm and CDI and streaming them to a web browser via WebSockets
+** Programmatically consuming change events using Thorntail and CDI and streaming them to a web browser via WebSockets
 
 The overall architecture of this lab module looks like this:
 
@@ -659,22 +659,22 @@ Alternatively, you can use curl to do so:
 [source]
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET "elasticsearch:9200/hike/_search?pretty"
 
-==== Consuming Data Change Events With WildFly Swarm
+==== Consuming Data Change Events With Thorntail
 
 Finally, let's explore how to consume the Debezium events in a custom application and forward them to a web UI using WebSockets.
 
-The example application for that is based on http://wildfly-swarm.io/[WildFly Swarm],
+The example application for that is based on https://thorntail.io/[Thorntail],
 which provides an alternative approach for packaging and running Java EE applications.
-Instead of deploying to an application server, WildFly Swarm creates a self-contained executable JAR
+Instead of deploying to an application server, Thorntail creates a self-contained executable JAR
 which contains your application and just those parts of the Java EE platform which it requires.
 
-The application sources are provided at the lab's https://github.com/strimzi/strimzi-lab/tree/master/debezium-swarm-demo[GitHub repo].
+The application sources are provided at the lab's https://github.com/debezium/microservices-lab/tree/master/debezium-thorntail-demo[GitHub repo].
 Again we're using an S2I process for building and deploying the application:
 
 [source,sh]
 ----
 $ oc new-app --name=websocketsinkapp fabric8/s2i-java:latest~https://github.com/debezium/microservices-lab.git \
-    --context-dir=debezium-swarm-demo \
+    --context-dir=debezium-thorntail-demo \
     -e MYSQL_DATABASE=inventory \
     -e AB_PROMETHEUS_OFF=true \
     -e KAFKA_SERVICE_HOST=my-cluster-kafka-bootstrap \
@@ -686,7 +686,7 @@ $ oc patch bc/websocketsinkapp -p '{"spec":{"strategy":{"sourceStrategy":{"incre
 ----
 
 In this case we're using the https://hub.docker.com/r/fabric8/s2i-java/[Java S2I image] provided by the fabric8 project.
-(Note there's commercial support available for running WildFly Swarm applications on OpenShift in form of the https://developers.redhat.com/products/rhoar/overview/[RHOAR product]).
+(Note there's commercial support available for running Thorntail applications on OpenShift in form of the https://developers.redhat.com/products/rhoar/overview/[RHOAR product]).
 
 We still need to expose port 8080 for the application and set up a route for it
 (as that's not done automatically by the S2I builder image).
@@ -701,9 +701,9 @@ $ oc expose svc websocketsinkapp
 
 To consume the Debezium CDC events from the Kafka topic,
 the application uses https://github.com/aerogear/kafka-cdi[kafka-cdi], a CDI portable extension provided by the AeroGear project.
-This happens in the https://github.com/debezium/microservices-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/WebSocketChangeEventHandler.java[WebSocketChangeEventHandler] class.
+This happens in the https://github.com/debezium/microservices-lab/blob/master/debezium-thorntail-demo/src/main/java/com/example/dbzdemo/ws/WebSocketChangeEventHandler.java[WebSocketChangeEventHandler] class.
 All it then needs to do is to push all incoming events via WebSockets to all connected clients.
-For that purpose, the https://github.com/debezium/microservices-lab/blob/master/debezium-swarm-demo/src/main/java/com/example/dbzdemo/ws/ChangeEventsWebsocketEndpoint.java[ChangeEventsWebsocketEndpoint] class registers all clients with the event handler upon connection creation.
+For that purpose, the https://github.com/debezium/microservices-lab/blob/master/debezium-thorntail-demo/src/main/java/com/example/dbzdemo/ws/ChangeEventsWebsocketEndpoint.java[ChangeEventsWebsocketEndpoint] class registers all clients with the event handler upon connection creation.
 
 Wait until the S2I build has finished and the application is running
 (again this initial build will take a few minutes for downloading all required dependencies, while future incremental ones will be faster).
@@ -734,7 +734,7 @@ You've set up the Debezium connector for MySQL to ingest changes of an existing 
 without requiring any code changes to that application.
 Then you've explored different ways for consuming the change events:
 using Kafka Connect and the JDBC sink adaptor to simply stream the data into a Postgres database
-and using WildFly Swarm and CDI to consume change events programmatically and relay them to a web browser using WebSockets.
+and using Thorntail and CDI to consume change events programmatically and relay them to a web browser using WebSockets.
 
 To learn more about Debezium, refer to its homepage http://debezium.io[http://debezium.io],
 where you can find an extensive tutorial, documentation and more.

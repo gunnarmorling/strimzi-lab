@@ -16,11 +16,22 @@ Please perform these steps before coming to the workshop.
 * Ansible 2.4 or newer installed
 * Vagrant installed or access to a VM in the cloud that you can SSH into
 
-=== Using Vagrant
+=== Set-Up
 
-tbd.
+==== Using Vagrant
 
-=== Using a Cloud Machine
+Clone the workshop repo:
+
+[source, sh]
+git clone https://github.com/debezium/microservices-lab.git
+cd microservices-lab/vm-setup
+
+Provision the VM using Vagrant:
+
+[source, sh]
+vagrant up
+
+==== Using a Cloud Machine
 
 Clone the workshop repo:
 
