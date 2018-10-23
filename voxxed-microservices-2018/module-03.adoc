@@ -31,7 +31,7 @@ Start a MySQL instance by running:
 
 [source, sh]
 $ oc new-app --name=mysql debezium/example-mysql:0.8
-$ oc env dc/mysql MYSQL_ROOT_PASSWORD=debezium MYSQL_USER=mysqluser MYSQL_PASSWORD=mysqlpw
+$ oc set env dc/mysql MYSQL_ROOT_PASSWORD=debezium MYSQL_USER=mysqluser MYSQL_PASSWORD=mysqlpw
 
 Then build and start the application.
 This uses the https://github.com/fabric8/s2i-java[Fabric8 S2I] ("source to image") builder image which will fetch the application's source code from the given location, build it using Maven and then run the Thorntail uber JAR:
@@ -456,7 +456,7 @@ Using the Kafka Connect REST API, you also can query the list of connectors, que
 [source]
 ----
 # List all connectors
-$ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
+$ oc exec -i my-cluster-kafka-0 -- curl -w "\n" -s -X GET \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
     http://debezium-connect-api:8083/connectors
@@ -465,7 +465,7 @@ $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
 [source]
 ----
 # Get status of "inventory-connector"
-$ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
+$ oc exec -i my-cluster-kafka-0 -- curl -w "\n" -s -X GET \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
     http://debezium-connect-api:8083/connectors/inventory-connector/status
@@ -474,7 +474,7 @@ $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET \
 [source]
 ----
 # Delete "inventory-connector" (don't run it, as we'll still need the connector in the following)
-$ oc exec -i my-cluster-kafka-0 -- curl -s -X DELETE \
+$ oc exec -i my-cluster-kafka-0 -- curl -w "\n" -s -X DELETE \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
     http://debezium-connect-api:8083/connectors/inventory-connector
@@ -610,7 +610,7 @@ Finally, the config map contents can be exposed to the Elasticsearch container u
 
 [source]
 ----
-$ oc volume dc/elasticsearch --overwrite --add \
+$ oc set volumes dc/elasticsearch --overwrite --add \
   -t configmap \
   -m /usr/share/elasticsearch/config/elasticsearch.yml \
   --sub-path=elasticsearch.yml \
@@ -623,7 +623,7 @@ it's time to register an instance of the Elasticsearch sink connector:
 
 [source]
 ----
-$ oc exec -i my-cluster-kafka-0 -- curl -X POST \
+$ oc exec -i my-cluster-kafka-0 -- curl -X POST -w "\n" \
     -H "Accept:application/json" \
     -H "Content-Type:application/json" \
     http://debezium-connect-api:8083/connectors -d @- <<'EOF'
