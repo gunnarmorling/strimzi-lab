@@ -667,6 +667,115 @@ Alternatively, you can use curl to do so:
 [source]
 $ oc exec -i my-cluster-kafka-0 -- curl -s -X GET "elasticsearch:9200/hike/_search?pretty"
 
+==== Streaming Aggregate Events To Elasticsearch
+
+By default Debezium creates one Kafka topic per table captured in the source database.
+It often is a requirement though to have events that contain a complete aggregate from the domain model,
+e.g. an order and all its order lines.
+
+There are different approaches for creating such aggregate events:
+
+* Use a streaming query engine such as KStreams to join the topics of the involved tables
+* Materialize aggregates in a separate table within the source database
+
+In the following we're going to follow the second option.
+For that, a small extension to Hibernate ORM has been provided as part of the example application.
+By means of putting the `@MaterializeAggregate` to an aggregate root of the domain model,
+this entity and all its dependent types will be serialized as a JSON structure into the `aggregates` within the source database.
+We then can use Debezium to capture the changes of that table.
+A Kafka Connect SMT (single message transformation) is used to route the change events retrieved from that aggregate table into one topic per aggregate type.
+
+Let's begin by starting another build of Kafka Connect containing this SMT:
+
+[source,sh]
+----
+cd plugins/debezium-connector-mysql && \
+curl -O https://raw.githubusercontent.com/debezium/microservices-lab/master/json-expansion-smt/json-expansion-smt-1.0.0.Final.jar && \
+cd .. && \
+oc start-build debezium-connect --from-dir=. --follow && \
+cd ..
+----
+
+Once the build has completed and Kafka Connect is running again,
+register another instance of the Debezium MySQL connector:
+
+[source,sh]
+----
+$ oc exec -i my-cluster-kafka-0 -- curl -s -X POST -w "\n" \
+    -H "Accept:application/json" \
+    -H "Content-Type:application/json" \
+    http://debezium-connect-api:8083/connectors -d @- <<'EOF'
+
+{
+    "name": "hike-complete-connector",
+    "config": {
+        "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+        "tasks.max": "1",
+        "database.hostname": "mysql",
+        "database.port": "3306",
+        "database.user": "debezium",
+        "database.password": "dbz",
+        "database.server.id": "184055",
+        "database.server.name": "dbserver1_hike_complete",
+        "database.whitelist": "inventory",
+        "table.whitelist": "inventory\\.aggregates",
+        "database.history.kafka.bootstrap.servers": "my-cluster-kafka-bootstrap:9092",
+        "database.history.kafka.topic": "schema-changes.inventory_hike_complete",
+        "transforms" : "expandjson",
+        "transforms.expandjson.type": "io.debezium.aggregation.smt.ExpandJsonSmt"
+    }
+}
+EOF
+----
+
+This captures only changes to the `aggregates` table and applies the `ExpandJsonSmt` SMT for routing the events to the correct topic.
+After the connector has been deployed, create a few records in the example application and observe the corresponding aggregate events in the Kafka topic:
+
+[source,sh]
+----
+oc exec -it my-cluster-kafka-0 -- /opt/kafka/bin/kafka-console-consumer.sh \
+   --bootstrap-server my-cluster-kafka-bootstrap:9092 \
+   --from-beginning \
+   --property print.key=true \
+   --topic hike_complete
+----
+
+Let's deploy another instance of the Elasticsearch sink connector for streaming the aggregate events into Elasticsearch:
+
+[source,sh]
+----
+$ oc exec -i my-cluster-kafka-0 -- curl -X POST -w "\n" \
+    -H "Accept:application/json" \
+    -H "Content-Type:application/json" \
+    http://debezium-connect-api:8083/connectors -d @- <<'EOF'
+{
+    "name": "hikes-complete-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
+        "tasks.max": "1",
+        "topics": "hike_complete",
+        "connection.url": "http://elasticsearch:9200",
+        "key.ignore": "false",
+        "type.name": "hike_complete",
+        "behavior.on.null.values" : "delete",
+        "transforms": "unwrap,key",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "transforms.key.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+        "transforms.key.field": "id"
+    }
+}
+EOF
+----
+
+To browse the contents of the `hike_complete` index, go to http://elasticsearch-voxxed.<YOUR SERVER IP>.nip.io/hike_complete/_search?pretty.
+Alternatively, you can use curl to do so:
+
+[source]
+$ oc exec -i my-cluster-kafka-0 -- curl -s -X GET "elasticsearch:9200/hike_complete/_search?pretty"
+
+Having the complete aggregate within a single index allows for efficient queries based on all the properties of the aggregate,
+no matter in which table they are stored within the source database.
+
 ==== Consuming Data Change Events With Thorntail
 
 Finally, let's explore how to consume the Debezium events in a custom application and forward them to a web UI using WebSockets.

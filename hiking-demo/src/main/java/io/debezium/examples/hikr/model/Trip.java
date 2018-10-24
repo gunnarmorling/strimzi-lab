@@ -13,6 +13,8 @@ import javax.persistence.OneToMany;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * @author Emmanuel Bernard &lt;emmanuel@hibernate.org&gt;
  */
@@ -25,9 +27,11 @@ public class Trip {
 	public String tripName;
 
 	@Temporal(TemporalType.DATE )
+	@JsonIgnore
 	public Date startDate;
 
 	@Temporal(TemporalType.DATE )
+	@JsonIgnore
 	public Date endDate;
 
 	public long price;
@@ -36,5 +40,6 @@ public class Trip {
 	public Person organizer;
 
 	@OneToMany(mappedBy="recommendedTrip")
+	@JsonIgnore
 	public Set<Hike> availableHikes = new HashSet<Hike>();
 }

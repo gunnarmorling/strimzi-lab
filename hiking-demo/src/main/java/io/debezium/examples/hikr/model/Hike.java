@@ -12,8 +12,11 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OrderColumn;
 import javax.validation.constraints.NotNull;
 
+import io.debezium.examples.hikr.aggregation.hibernate.MaterializeAggregate;
+
 @Entity
 //@NamedNativeQuery( name = "hikesByTripId", query = "{ recommendedTrip_id: { $in: [ 27 ] } }", resultClass = Hike.class )
+@MaterializeAggregate(aggregateName="hike_complete")
 public class Hike {
 
 	@Id
