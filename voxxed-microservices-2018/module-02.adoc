@@ -7,6 +7,18 @@ You'll learn the following things:
 * Sending messages to Kafka
 * Receiving messages from Kafka
 
+We have prepared two simple microservices, one which receives "customer orders" via a REST API and another one which should get hold of any order in order to produce "invoices".
+The services are based on https://thorntail.io/[Thorntail], an approach for building microservices using Java EE and MicroProfile.
+
+=== Cloning the Example Services
+
+Begin by creating a fork of the https://github.com/debezium/microservices-lab[microservices-lab] GitHub repository under your own GitHub user.
+Then clone your forked repository to your _local machine_:
+
+[source, sh]
+git clone https://github.com/<your user>/microservices-lab.git
+cd microservices-lab
+
 === Setting Up the Producer Application
 
 The producer application receives orders for given events via a REST API.
