@@ -816,6 +816,22 @@ no matter in which table they are stored within the source database.
 
 ==== Consuming Data Change Events With Thorntail
 
+oc new-app --name=order-reporting fabric8/s2i-java:latest~https://github.com/gunnarmorling/microservices-lab.git#kstreams \
+    --context-dir=order-reporting \
+    -e AB_PROMETHEUS_OFF=true \
+    -e KAFKA_BOOTSTRAP_SERVERS=my-cluster-kafka-bootstrap:9092 \
+    -e JAVA_OPTIONS=-Djava.net.preferIPv4Stack=true
+
+oc patch bc/order-reporting -p '{"spec":{"strategy":{"sourceStrategy":{"incremental":true}}}}'
+
+oc patch service order-reporting -p '{ "spec" : { "ports" : [{ "name" : "8080-tcp", "port" : 8080, "protocol" : "TCP", "targetPort" : 8080 }] } } }'
+
+oc expose svc order-reporting
+
+oc get routes order-reporting -o=jsonpath='{.spec.host}{"\n"}'
+
+
+
 ----
 TODO: We could replace this part and show how to throw KStreams into the mix and run some streaming queries on the CDC data.
 Essentially, this would be taken from the Kafka Summit demo:
