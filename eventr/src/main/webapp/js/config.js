@@ -89,6 +89,7 @@ angular
         });
 
         $scope.order = {};
+        $scope.insert = true;
 
         $scope.save = function() {
             PersistenceService.createOrder($scope.order).then(function (order) {
@@ -102,6 +103,7 @@ angular
     })
     .controller('OrderEditCtrl', function($scope,  $location, $routeParams, PersistenceService) {
         $scope.order;
+        $scope.insert = false;
 
         PersistenceService.getEvents().then(function (events) {
             $scope.events = events;
