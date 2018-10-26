@@ -18,8 +18,11 @@ import javax.persistence.TemporalType;
 import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotNull;
 
+import io.debezium.examples.eventr.aggregation.hibernate.MaterializeAggregate;
+
 @Entity
 @Table(name = "EventrOrder")
+@MaterializeAggregate(aggregateName="orders_with_event")
 public class Order implements Serializable {
 
     private static final long serialVersionUID = 1L;
