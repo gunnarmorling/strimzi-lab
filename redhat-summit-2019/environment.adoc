@@ -33,4 +33,4 @@ At the start of the lab you have been provided with a GUID, which uniquely ident
 In the following instructions, replace the `<GUID>` placeholder with your GUID.
 For example, if your GUID is `a2b3`, the URL `workstation-<GUID>.example.com` becomes `workstation-a2b3.example.com`.
 
-Now, let's start the lab.
+Now, let's start <<module-01#,the lab>>.

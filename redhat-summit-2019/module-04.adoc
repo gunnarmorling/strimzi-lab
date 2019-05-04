@@ -231,13 +231,15 @@ The value from the `aggregateid` column is used as the message key,
 ensuring that all events in one topic pertaining to the same entity (order, customer etc.) will go to the same partition of the corresponding Kafka topic.
 If needed, the SMT could be configured to make us of other column for these purposes.
 
-With the connector being deployed, we can take a look at the `order.events` topic:
+With the connector being deployed, we can take a look at the `order.events` topic
+(piping to jq allows for nicer formatting and selection of the payload only):
 
 [source]
-$ kafkacat -b production-ready-kafka-bootstrap \
+$ stdbuf -o0 kafkacat -b production-ready-kafka-bootstrap \
     -t order.events \
     -o beginning \
-    -f 'offset: %o, key: %k, value: %s\n'
+    -C \
+    | jq ."payload"
 
 Note how the event payload is a string-ified JSON, i.e. the event structure is opaque to the schema of the message in Kafka.
 
