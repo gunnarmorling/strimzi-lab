@@ -1,0 +1,17 @@
+= Bridging Microservice Boundaries With Apache Kafka and Debezium
+
+# What is this ?
+
+In this lab, you’ll learn the practical aspects of developing and running an end-to-end Kafka-based applications on OpenShift, using Debezium for streaming change events out of the application's databases.
+
+Before starting, let's get familiar with the link:./environment.adoc[lab environment].
+
+# Outline
+
+. link:./module-01.adoc[Deploying an Apache Kafka Cluster with AMQ Streams]
+
+. link:./module-02.adoc[Using Apache Kafka to Exchange Data Between Two Microservices]
+
+. link:./module-03.adoc[Change Data Capture with Kafka Connect and Debezium]
+
+. link:./module-04.adoc[Advanced Change Data Streaming Applications]
