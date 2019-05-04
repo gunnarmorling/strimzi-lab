@@ -54,7 +54,11 @@ To do so, use `oc patch` and expose a route for the service like so:
 ----
 $ oc patch service eventrapp -p '{ "spec" : { "ports" : [{ "name" : "8080-tcp", "port" : 8080, "protocol" : "TCP", "targetPort" : 8080 }] } } }'
 
+service/eventrapp patched
+
 $ oc expose svc eventrapp
+
+route.route.openshift.io/eventrapp exposed
 ----
 
 Verify that the pods of the database and the application are running:
@@ -221,6 +225,7 @@ echo '{
     "database.whitelist": "inventory",
     "database.history.kafka.bootstrap.servers": "production-ready-kafka-bootstrap:9092",
     "database.history.kafka.topic": "schema-changes.inventory",
+    "decimal.handling.mode" : "double",
     "transforms": "route",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
     "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
@@ -499,42 +504,31 @@ The value's payload contains information of
 
 If you now use the web app to insert, update or delete records while keeping the console consumer running, you'll see how corresponding CDC messages arrive in the topic.
 
-Using the Kafka Connect REST API, you also can query the list of connectors, query the status of a given connector, delete a connector and more:
+Using the Kafka Connect REST API, you also can query the list of connectors, query the status of a given connector, delete a connector and more
+(all these command should be run in the tooling pod):
 
 [source]
 ----
 # List all connectors
-$ oc exec -c kafka -i production-ready-kafka-0 -- curl -w "\n" -s -X GET \
-    -H "Accept:application/json" \
-    -H "Content-Type:application/json" \
-    http://debezium-connect-api:8083/connectors
+$ http http://debezium-connect-api:8083/connectors
 ----
 
 [source]
 ----
 # Get status of "inventory-connector"
-$ oc exec -c kafka -i production-ready-kafka-0 -- curl -w "\n" -s -X GET \
-    -H "Accept:application/json" \
-    -H "Content-Type:application/json" \
-    http://debezium-connect-api:8083/connectors/inventory-connector/status
+$ http http://debezium-connect-api:8083/connectors/inventory-connector/status
 ----
 
 [source]
 ----
 # Restart "inventory-connector"
-$ oc exec -c kafka -i production-ready-kafka-0 -- curl -w "\n" -s -X POST \
-    -H "Accept:application/json" \
-    -H "Content-Type:application/json" \
-    http://debezium-connect-api:8083/connectors/inventory-connector/restart
+$ http POST http://debezium-connect-api:8083/connectors/inventory-connector/restart
 ----
 
 [source]
 ----
 # Delete "inventory-connector" (don't run it, as we'll still need the connector in the following)
-$ oc exec -c kafka -i production-ready-kafka-0 -- curl -w "\n" -s -X DELETE \
-    -H "Accept:application/json" \
-    -H "Content-Type:application/json" \
-    http://debezium-connect-api:8083/connectors/inventory-connector
+$ http DELETE http://debezium-connect-api:8083/connectors/inventory-connector
 ----
 
 === Consuming Change Data Events
@@ -630,7 +624,13 @@ and expose it as a service:
 [source]
 ----
 $ oc new-app -e ES_JAVA_OPTS="-Xms512m -Xmx512m" elasticsearch:6.4.2
+----
+
+[source]
+----
 $ oc expose svc/elasticsearch
+
+route.route.openshift.io/elasticsearch exposed
 ----
 
 Create a configuration file for Elasticsearch:
